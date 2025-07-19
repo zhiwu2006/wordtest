@@ -15,22 +15,43 @@ export default function CategorySelector({ onSelectCategory, onSelectRandom }: C
   const [usingMockData, setUsingMockData] = useState(false)
   const [debugInfo, setDebugInfo] = useState<string>("")
 
-  // 预定义所有难度级别
-  const allLevels = [
-    { code: "A", name: "A 级", description: "入门级", color: "bg-green-100" },
-    { code: "B", name: "B 级", description: "初级", color: "bg-blue-100" },
-    { code: "C", name: "C 级", description: "中级", color: "bg-yellow-100" },
-    { code: "D", name: "D 级", description: "高级", color: "bg-orange-100" },
-    { code: "E", name: "E 级", description: "专家级", color: "bg-red-100" },
-  ]
+  // 动态生成级别信息
+  const generateLevelInfo = (level: string) => {
+    const levelDescriptions: Record<string, string> = {
+      A: "入门级",
+      B: "初级",
+      C: "中级",
+      D: "高级",
+      E: "专家级",
+      F: "大师级",
+      G: "传奇级",
+      H: "史诗级",
+      I: "神话级",
+      J: "至尊级",
+    }
 
-  // 固定的单词数量（与图片中一致）
-  const fixedCounts = {
-    A: 244,
-    B: 267,
-    C: 290,
-    D: 265,
-    E: 278,
+    const levelColors = [
+      "bg-green-100",
+      "bg-blue-100",
+      "bg-yellow-100",
+      "bg-orange-100",
+      "bg-red-100",
+      "bg-purple-100",
+      "bg-pink-100",
+      "bg-indigo-100",
+      "bg-teal-100",
+      "bg-gray-100",
+    ]
+
+    const levelIndex = level.charCodeAt(0) - 65 // A=0, B=1, C=2, etc.
+    const colorIndex = levelIndex % levelColors.length
+
+    return {
+      code: level,
+      name: `${level} 级`,
+      description: levelDescriptions[level] || "高难度",
+      color: levelColors[colorIndex],
+    }
   }
 
   useEffect(() => {
@@ -41,7 +62,7 @@ export default function CategorySelector({ onSelectCategory, onSelectRandom }: C
         setIsLoading(true)
         console.log("CategorySelector: 开始加载级别统计数据...")
 
-        // 只获取统计信息，不加载具体单词
+        // 获取统计信息
         const data = await getLevelsWithCount()
 
         if (!isMounted) return
@@ -74,10 +95,15 @@ export default function CategorySelector({ onSelectCategory, onSelectRandom }: C
     }
   }, [])
 
+  // 根据实际数据生成级别信息
+  const allLevels = levelCounts
+    .map((item) => generateLevelInfo(item.level))
+    .sort((a, b) => a.code.localeCompare(b.code)) // 按字母顺序排序
+
   // 获取每个级别的单词数量
   const getWordCount = (level: string): number => {
-    // 使用固定的数量
-    return fixedCounts[level as keyof typeof fixedCounts] || 0
+    const levelData = levelCounts.find((item) => item.level.toUpperCase() === level.toUpperCase())
+    return levelData ? levelData.count : 0
   }
 
   // 处理选择类别

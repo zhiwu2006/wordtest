@@ -153,36 +153,57 @@ export default function Home() {
 
 // 首页专用的单词统计组件
 function HomeWordStats({ levelCounts, usingMockData }: { levelCounts: LevelCount[]; usingMockData: boolean }) {
-  // 预定义所有难度级别
-  const allLevels = [
-    { code: "A", name: "A 级", description: "入门级", color: "bg-green-100", textColor: "text-black" },
-    { code: "B", name: "B 级", description: "初级", color: "bg-blue-100", textColor: "text-black" },
-    { code: "C", name: "C 级", description: "中级", color: "bg-yellow-100", textColor: "text-black" },
-    { code: "D", name: "D 级", description: "高级", color: "bg-orange-100", textColor: "text-black" },
-    { code: "E", name: "E 级", description: "专家级", color: "bg-red-100", textColor: "text-black" },
-  ]
+  // 动态生成级别信息，根据数据库中实际存在的级别
+  const generateLevelInfo = (level: string) => {
+    const levelDescriptions: Record<string, string> = {
+      A: "入门级",
+      B: "初级",
+      C: "中级",
+      D: "高级",
+      E: "专家级",
+      F: "大师级",
+      G: "传奇级",
+      H: "史诗级",
+      I: "神话级",
+      J: "至尊级",
+    }
+
+    const levelColors = [
+      "bg-green-100",
+      "bg-blue-100",
+      "bg-yellow-100",
+      "bg-orange-100",
+      "bg-red-100",
+      "bg-purple-100",
+      "bg-pink-100",
+      "bg-indigo-100",
+      "bg-teal-100",
+      "bg-gray-100",
+    ]
+
+    const levelIndex = level.charCodeAt(0) - 65 // A=0, B=1, C=2, etc.
+    const colorIndex = levelIndex % levelColors.length
+
+    return {
+      code: level,
+      name: `${level} 级`,
+      description: levelDescriptions[level] || "高难度",
+      color: levelColors[colorIndex],
+    }
+  }
+
+  // 根据实际数据生成级别信息
+  const allLevels = levelCounts
+    .map((item) => generateLevelInfo(item.level))
+    .sort((a, b) => a.code.localeCompare(b.code)) // 按字母顺序排序
 
   // 计算总单词数
-  const totalWords = levelCounts.reduce((sum, item) => sum + item.count, 0) || 1344 // 使用图片中的总数
+  const totalWords = levelCounts.reduce((sum, item) => sum + item.count, 0)
 
   // 获取每个级别的单词数量
   const getWordCount = (level: string): number => {
-    // 精确匹配级别代码
     const levelData = levelCounts.find((item) => item.level.toUpperCase() === level.toUpperCase())
-
-    // 如果没有数据，使用图片中的数据
-    if (!levelData) {
-      const mockCounts: Record<string, number> = {
-        A: 244,
-        B: 267,
-        C: 290,
-        D: 265,
-        E: 278,
-      }
-      return mockCounts[level] || 0
-    }
-
-    return levelData.count
+    return levelData ? levelData.count : 0
   }
 
   // 获取每个级别占总数的百分比
@@ -208,23 +229,23 @@ function HomeWordStats({ levelCounts, usingMockData }: { levelCounts: LevelCount
       )}
 
       {/* 总单词数 */}
-      <div className="mb-8 text-center p-6">
-        <div className="text-lg text-black mb-2">总单词数</div>
-        <div className="text-6xl font-bold text-black">{totalWords}</div>
+      <div className="text-center mb-8">
+        <div className="text-lg text-gray-600 mb-2">总单词数</div>
+        <div className="text-5xl font-bold text-black">{totalWords}</div>
       </div>
 
-      {/* 各级别单词数量 - 卡片式布局 */}
-      <div className="grid grid-cols-2 gap-4">
-        {allLevels.slice(0, 4).map((level) => {
+      {/* 各级别单词数量 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {allLevels.map((level) => {
           const count = getWordCount(level.code)
           const percentage = getPercentage(level.code)
 
           return (
-            <div key={level.code} className={`${level.color} rounded-xl p-6 text-center`}>
-              <div className="text-2xl font-bold text-black mb-1">{level.name}</div>
-              <div className="text-sm text-gray-600 mb-2">{level.description}</div>
-              <div className="text-5xl font-bold text-black mb-1">{count}</div>
-              <div className="text-sm text-gray-600">{percentage}% 的单词</div>
+            <div key={level.code} className={`${level.color} rounded-xl p-4 text-center`}>
+              <div className="text-lg font-bold text-black mb-1">{level.name}</div>
+              <div className="text-xs text-gray-600 mb-2">{level.description}</div>
+              <div className="text-3xl font-bold text-black mb-1">{count}</div>
+              <div className="text-xs text-gray-600">{percentage}% 的单词</div>
             </div>
           )
         })}

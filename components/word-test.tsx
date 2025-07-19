@@ -41,6 +41,9 @@ export default function WordTest({ words, onComplete, timeLimit = 2, onRetestInc
   // 在 state 部分添加一个新的状态来跟踪已正确回答的单词ID
   const [correctWordIds, setCorrectWordIds] = useState<Set<number>>(new Set())
 
+  // 添加一个状态来跟踪已经测试过的单词数量
+  const [testedWordsCount, setTestedWordsCount] = useState(0)
+
   const startTimeRef = useRef<number>(0)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -127,6 +130,17 @@ export default function WordTest({ words, onComplete, timeLimit = 2, onRetestInc
     if (!isSpeaking && currentWord) {
       speakWord(currentWord.word)
     }
+  }
+
+  // 检查是否应该结束测试
+  const checkShouldEndTest = () => {
+    // 如果已测试的单词数量达到了总单词数量，结束测试
+    if (testedWordsCount >= words.length) {
+      console.log("已测试所有单词，测试完成")
+      onComplete()
+      return true
+    }
+    return false
   }
 
   // 生成选项
@@ -220,6 +234,9 @@ export default function WordTest({ words, onComplete, timeLimit = 2, onRetestInc
     setIncorrectCount((prev) => prev + 1)
     setIncorrectWords((prev) => [...prev, currentWord])
 
+    // 增加已测试单词计数
+    setTestedWordsCount((prev) => prev + 1)
+
     // 1秒后移动到下一个单词
     timeoutRef.current = setTimeout(() => {
       moveToNextWord()
@@ -247,6 +264,9 @@ export default function WordTest({ words, onComplete, timeLimit = 2, onRetestInc
       setShowCorrectAnswer(true)
     }
 
+    // 增加已测试单词计数
+    setTestedWordsCount((prev) => prev + 1)
+
     // 计算响应时间（毫秒）
     const responseTime = Date.now() - startTimeRef.current
 
@@ -269,12 +289,9 @@ export default function WordTest({ words, onComplete, timeLimit = 2, onRetestInc
 
   // 移动到下一个单词
   const moveToNextWord = () => {
-    // 检查是否所有单词都已至少正确回答一次
-    const allWordsCorrect = words.every((word) => correctWordIds.has(word.id))
-
-    // 如果所有单词都已正确回答且没有需要复习的单词，则完成测试
-    if (allWordsCorrect && reviewList.length === 0) {
-      console.log("所有单词都已正确回答，测试完成")
+    // 首先检查是否应该结束测试
+    if (testedWordsCount >= words.length) {
+      console.log("已测试所有单词，测试完成")
       onComplete()
       return
     }
@@ -504,14 +521,14 @@ export default function WordTest({ words, onComplete, timeLimit = 2, onRetestInc
         <div className="flex justify-between mb-2">
           <span className="text-black">进度</span>
           <span className="text-black">
-            {currentWordIndex + 1}/{words.length}
+            {testedWordsCount}/{words.length}
             {reviewList.length > 0 && ` (需复习: ${reviewList.length})`}
           </span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-3">
           <div
             className="bg-black rounded-full h-3 transition-all duration-300 ease-out"
-            style={{ width: `${progress}%` }}
+            style={{ width: `${(testedWordsCount / words.length) * 100}%` }}
           ></div>
         </div>
       </div>

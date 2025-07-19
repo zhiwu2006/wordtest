@@ -131,25 +131,55 @@ export async function getLevelsWithCount(): Promise<LevelCount[]> {
       console.error("SQL查询异常:", sqlError)
     }
 
-    // 方法3: 使用原生SQL查询
-    console.log("方法3: 尝试使用原生SQL查询...")
+    // 方法3: 分页获取所有记录并在客户端手动统计
+    console.log("方法3: 尝试分页获取所有记录并在客户端手动统计...")
     try {
-      // 使用原生SQL查询进行分组统计
-      const { data, error } = await supabase.from("dictionary").select("level")
+      const PAGE_SIZE = 1000
+      const allRecords: { level: string }[] = []
+      let page = 0
+      let hasMore = true
 
-      if (!error && data) {
-        console.log(`获取到 ${data.length} 条记录，开始手动统计...`)
+      console.log("开始分页获取...")
+      while (hasMore) {
+        const from = page * PAGE_SIZE
+        const to = from + PAGE_SIZE - 1
+        console.log(`正在获取第 ${page + 1} 页 (记录 ${from} 到 ${to})...`)
 
+        const { data, error } = await supabase
+          .from("dictionary")
+          .select("level")
+          .not("level", "is", null) // 忽略 level 为 null 的记录
+          .range(from, to)
+
+        if (error) {
+          console.error(`获取第 ${page + 1} 页时出错:`, error)
+          throw error // 抛出错误以中止
+        }
+
+        if (data) {
+          allRecords.push(...data)
+        }
+
+        if (!data || data.length < PAGE_SIZE) {
+          hasMore = false
+        } else {
+          page++
+        }
+      }
+
+      console.log(`分页获取完成，共获取到 ${allRecords.length} 条记录。`)
+
+      if (allRecords.length > 0) {
         // 手动计算每个级别的单词数量
         const levelCounts: Record<string, number> = {}
-        data.forEach((item) => {
+        allRecords.forEach((item) => {
           if (item.level) {
             const level = item.level.trim().toUpperCase()
             levelCounts[level] = (levelCounts[level] || 0) + 1
           }
         })
 
-        console.log("计算的级别计数:", levelCounts)
+        console.log("客户端手动统计结果:", levelCounts)
 
         // 转换为数组格式
         const result = Object.entries(levelCounts).map(([level, count]) => ({
@@ -157,54 +187,15 @@ export async function getLevelsWithCount(): Promise<LevelCount[]> {
           count,
         }))
 
-        console.log("返回的结果:", result)
+        console.log("返回最终统计结果:", result)
         return result
       }
-
-      console.log("原生SQL查询未返回数据或发生错误:", error)
-    } catch (nativeSqlError) {
-      console.error("原生SQL查询异常:", nativeSqlError)
+    } catch (fallbackError) {
+      console.error("客户端手动统计失败:", fallbackError)
     }
 
-    // 方法4: 获取所有级别并手动计数
-    console.log("方法4: 尝试获取所有级别并手动计数...")
-    const { data, error } = await withRetry(
-      () => supabase.from("dictionary").select("level"),
-      3,
-      1000,
-      2,
-      (error, attempt) => {
-        console.warn(`获取难度级别失败，第 ${attempt} 次尝试`, error)
-      },
-    )
-
-    if (error) {
-      console.error("Error fetching levels:", error)
-      isUsingMockData = true
-      return getMockLevelCounts()
-    }
-
-    console.log(`获取到 ${data?.length || 0} 条记录`)
-
-    // 手动计算每个级别的单词数量
-    const levelCounts: Record<string, number> = {}
-    data?.forEach((item) => {
-      if (item.level) {
-        const level = item.level.trim().toUpperCase()
-        levelCounts[level] = (levelCounts[level] || 0) + 1
-      }
-    })
-
-    console.log("计算的级别计数:", levelCounts)
-
-    // 转换为数组格式
-    const result = Object.entries(levelCounts).map(([level, count]) => ({
-      level,
-      count,
-    }))
-
-    console.log("返回的结果:", result)
-    return result
+    // 如果所有方法都失败，抛出错误，然后由最外层的 catch 处理
+    throw new Error("所有获取单词统计的方法都失败了。")
   } catch (error) {
     console.error("获取难度级别失败:", error)
     isUsingMockData = true

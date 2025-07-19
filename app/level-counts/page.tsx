@@ -14,18 +14,49 @@ interface LevelInfo {
 
 export default function LevelCountsPage() {
   const [levelCounts, setLevelCounts] = useState<Record<string, number>>({})
+  const [allLevels, setAllLevels] = useState<LevelInfo[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
   const [debugInfo, setDebugInfo] = useState<string[]>([])
 
-  // 预定义所有难度级别
-  const allLevels: LevelInfo[] = [
-    { code: "A", name: "A 级", description: "入门级", color: "bg-green-100" },
-    { code: "B", name: "B 级", description: "初级", color: "bg-blue-100" },
-    { code: "C", name: "C 级", description: "中级", color: "bg-yellow-100" },
-    { code: "D", name: "D 级", description: "高级", color: "bg-orange-100" },
-    { code: "E", name: "E 级", description: "专家级", color: "bg-red-100" },
-  ]
+  // 动态生成级别信息
+  const generateLevelInfo = (level: string): LevelInfo => {
+    const levelDescriptions: Record<string, string> = {
+      A: "入门级",
+      B: "初级",
+      C: "中级",
+      D: "高级",
+      E: "专家级",
+      F: "大师级",
+      G: "传奇级",
+      H: "史诗级",
+      I: "神话级",
+      J: "至尊级",
+    }
+
+    const levelColors = [
+      "bg-green-100",
+      "bg-blue-100",
+      "bg-yellow-100",
+      "bg-orange-100",
+      "bg-red-100",
+      "bg-purple-100",
+      "bg-pink-100",
+      "bg-indigo-100",
+      "bg-teal-100",
+      "bg-gray-100",
+    ]
+
+    const levelIndex = level.charCodeAt(0) - 65 // A=0, B=1, C=2, etc.
+    const colorIndex = levelIndex % levelColors.length
+
+    return {
+      code: level,
+      name: `${level} 级`,
+      description: levelDescriptions[level] || "高难度",
+      color: levelColors[colorIndex],
+    }
+  }
 
   // 添加调试日志的函数
   const addLog = (message: string) => {
@@ -42,6 +73,13 @@ export default function LevelCountsPage() {
         addLog("方法1: 使用 getLevelsWithCount 函数")
         const allLevelCounts = await getLevelsWithCount()
 
+        // 根据实际数据生成级别信息
+        const dynamicLevels = allLevelCounts
+          .map((item) => generateLevelInfo(item.level))
+          .sort((a, b) => a.code.localeCompare(b.code))
+
+        setAllLevels(dynamicLevels)
+
         // 转换为对象格式，方便查找
         const countsFromMethod1: Record<string, number> = {}
         allLevelCounts.forEach((item) => {
@@ -55,7 +93,7 @@ export default function LevelCountsPage() {
         const countsFromMethod2: Record<string, number> = {}
 
         // 并行查询所有级别
-        const promises = allLevels.map(async (level) => {
+        const promises = dynamicLevels.map(async (level) => {
           const count = await getWordCountByLevel(level.code)
           addLog(`方法2: ${level.name} 有 ${count} 个单词`)
           return { level: level.code, count }
@@ -71,7 +109,7 @@ export default function LevelCountsPage() {
 
         // 合并两种方法的结果，取较大值
         const finalCounts: Record<string, number> = {}
-        allLevels.forEach((level) => {
+        dynamicLevels.forEach((level) => {
           const code = level.code.toUpperCase()
           const count1 = countsFromMethod1[code] || 0
           const count2 = countsFromMethod2[code] || 0
@@ -116,7 +154,7 @@ export default function LevelCountsPage() {
       </header>
 
       <div className="flex-1 flex flex-col items-center">
-        <div className="bg-white rounded-3xl shadow-lg p-12 w-full max-w-2xl mb-8">
+        <div className="bg-white rounded-3xl shadow-lg p-12 w-full max-w-4xl mb-8">
           {isLoading ? (
             <div className="text-center py-8">
               <div className="text-3xl text-black mb-4">正在查询单词数量...</div>
@@ -140,7 +178,7 @@ export default function LevelCountsPage() {
               </div>
 
               {/* 各级别单词数量 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
                 {allLevels.map((level) => {
                   const count = levelCounts[level.code.toUpperCase()] || 0
                   const percentage = totalWords > 0 ? Math.round((count / totalWords) * 100) : 0
@@ -160,7 +198,7 @@ export default function LevelCountsPage() {
         </div>
 
         {/* 调试信息 */}
-        <div className="bg-white rounded-3xl shadow-lg p-8 w-full max-w-2xl">
+        <div className="bg-white rounded-3xl shadow-lg p-8 w-full max-w-4xl">
           <h3 className="text-xl font-bold mb-4 text-black">查询过程日志</h3>
           <div className="bg-gray-100 p-4 rounded-xl max-h-80 overflow-y-auto">
             {debugInfo.length > 0 ? (
