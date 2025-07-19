@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { type DictionaryWord, getWordsByCategory, getRandomWords } from "@/lib/supabase"
+import { type DictionaryWord, getWordsByCategory, getRandomWords, getLevelsWithCount } from "@/lib/supabase"
 import CategorySelector from "@/components/category-selector"
 import WordTest from "@/components/word-test"
 import Settings from "@/components/settings"
@@ -22,16 +22,7 @@ export default function LearnPage() {
   const [incorrectWords, setIncorrectWords] = useState<DictionaryWord[]>([])
   const [isRetestMode, setIsRetestMode] = useState(false)
   const [debugMode, setDebugMode] = useState(false)
-  const [wordCount, setWordCount] = useState<number | null>(null)
-
-  // 固定的单词数量（与图片中一致）
-  const fixedCounts = {
-    A: 244,
-    B: 267,
-    C: 290,
-    D: 265,
-    E: 278,
-  }
+  const [categoryWordCount, setCategoryWordCount] = useState<number | null>(null)
 
   // 从本地存储加载设置
   useEffect(() => {
@@ -45,13 +36,24 @@ export default function LearnPage() {
     }
   }, [])
 
-  // 当选择类别时，设置该类别的单词数量
+  // 当选择类别时，获取该类别的单词总数
   useEffect(() => {
-    if (selectedCategory) {
-      // 使用固定的单词数量
-      const count = fixedCounts[selectedCategory as keyof typeof fixedCounts] || 0
-      setWordCount(count)
+    const fetchWordCount = async () => {
+      if (selectedCategory) {
+        setIsLoading(true)
+        try {
+          const allCounts = await getLevelsWithCount()
+          const levelData = allCounts.find((l) => l.level === selectedCategory)
+          setCategoryWordCount(levelData ? levelData.count : 0)
+        } catch (error) {
+          console.error("Failed to fetch word count for category:", error)
+          setCategoryWordCount(0)
+        } finally {
+          setIsLoading(false)
+        }
+      }
     }
+    fetchWordCount()
   }, [selectedCategory])
 
   // 加载单词 - 仅在需要时加载
@@ -59,6 +61,7 @@ export default function LearnPage() {
     // 如果是重新测试模式，使用已有的错误单词
     if (isRetestMode) {
       console.log("重新测试模式，使用错误单词:", incorrectWords.length)
+      setWords([...incorrectWords]) // 确保单词状态被设置
       return
     }
 
@@ -86,7 +89,7 @@ export default function LearnPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [selectedCategory, isRandomMode, settings.wordCount, isRetestMode, incorrectWords.length])
+  }, [selectedCategory, isRandomMode, settings.wordCount, isRetestMode, incorrectWords])
 
   // 处理开始学习按钮点击
   const handleStartLearning = () => {
@@ -101,8 +104,7 @@ export default function LearnPage() {
     setIncorrectWords([])
     setIsTestComplete(false)
     setWords([]) // 清空已加载的单词
-    // 设置固定的单词数量
-    setWordCount(fixedCounts[category as keyof typeof fixedCounts] || 0)
+    setCategoryWordCount(null) // 重置单词数量，等待useEffect重新获取
   }
 
   // 处理随机模式
@@ -113,7 +115,7 @@ export default function LearnPage() {
     setIncorrectWords([])
     setIsTestComplete(false)
     setWords([]) // 清空已加载的单词
-    setWordCount(null) // 重置单词数量
+    setCategoryWordCount(null) // 重置单词数量
   }
 
   // 处理设置保存
@@ -143,7 +145,7 @@ export default function LearnPage() {
     setIsTestComplete(false)
     setIncorrectWords([])
     setWords([])
-    setWordCount(null)
+    setCategoryWordCount(null)
   }
 
   // 重新开始测试
@@ -176,11 +178,6 @@ export default function LearnPage() {
         setSelectedCategory(null)
         setIsRandomMode(false)
         setIsTestComplete(false)
-
-        // 强制组件重新渲染
-        setTimeout(() => {
-          console.log("重新测试模式已激活，错误单词数量:", wordsToRetest.length)
-        }, 0)
       } else {
         console.log("没有错误单词需要重新测试")
       }
@@ -258,96 +255,74 @@ export default function LearnPage() {
         )}
 
         {/* 显示选定类别的单词数量和开始学习按钮 */}
-        {(selectedCategory || isRandomMode) && !words.length && !isLoading && !isTestComplete && !isRetestMode && (
+        {(selectedCategory || isRandomMode) && words.length === 0 && !isTestComplete && !isRetestMode && (
           <div className="flex-1 flex flex-col items-center justify-center">
-            {selectedCategory && wordCount !== null && (
-              <div className="text-3xl text-black mb-8">
-                {wordCount > 0 ? `${selectedCategory} 级共有 ${wordCount} 个单词` : `${selectedCategory} 级暂无单词`}
-              </div>
-            )}
+            {isLoading && <div className="text-3xl text-black mb-8">加载中...</div>}
+            {!isLoading && (
+              <>
+                {selectedCategory && categoryWordCount !== null && (
+                  <div className="text-3xl text-black mb-8">
+                    {categoryWordCount > 0
+                      ? `${selectedCategory} 级共有 ${categoryWordCount} 个单词`
+                      : `${selectedCategory} 级暂无单词`}
+                  </div>
+                )}
 
-            {isRandomMode && <div className="text-3xl text-black mb-8">随机学习模式</div>}
+                {isRandomMode && <div className="text-3xl text-black mb-8">随机学习模式</div>}
 
-            {((selectedCategory && wordCount && wordCount > 0) || isRandomMode) && (
-              <button
-                onClick={handleStartLearning}
-                className="bg-black text-white text-2xl py-6 px-12 rounded-full shadow-lg flex items-center"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-8 w-8 mr-3"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                开始学习
-              </button>
-            )}
+                {((selectedCategory && categoryWordCount && categoryWordCount > 0) || isRandomMode) && (
+                  <button
+                    onClick={handleStartLearning}
+                    className="bg-black text-white text-2xl py-6 px-12 rounded-full shadow-lg flex items-center"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-8 w-8 mr-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    开始学习
+                  </button>
+                )}
 
-            {selectedCategory && wordCount === 0 && (
-              <button onClick={handleBackToCategories} className="bg-black text-white text-xl py-4 px-8 rounded-xl">
-                返回选择
-              </button>
+                {selectedCategory && categoryWordCount === 0 && (
+                  <button onClick={handleBackToCategories} className="bg-black text-white text-xl py-4 px-8 rounded-xl">
+                    返回选择
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}
 
-        {isLoading && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-3xl text-black">加载中...</div>
-          </div>
+        {words.length > 0 && !isTestComplete && (
+          <WordTest
+            words={words}
+            onComplete={handleTestComplete}
+            timeLimit={settings.timeLimit}
+            onRetestIncorrect={handleRetestIncorrect}
+          />
         )}
 
-        {(selectedCategory || isRandomMode || isRetestMode) &&
-          !isLoading &&
-          ((isRetestMode && incorrectWords.length === 0) ||
-            (!isRetestMode && words.length === 0 && wordCount === 0)) && (
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <div className="text-3xl text-black mb-6">
-                {isRetestMode
-                  ? "没有错误的单词需要复习"
-                  : isRandomMode
-                    ? "没有可用的单词"
-                    : `${selectedCategory} 级暂无单词`}
-              </div>
-              <button onClick={handleBackToCategories} className="bg-black text-white text-xl py-4 px-8 rounded-xl">
-                返回选择
-              </button>
-            </div>
-          )}
-
-        {(selectedCategory || isRandomMode || isRetestMode) &&
-          !isLoading &&
-          ((isRetestMode && incorrectWords.length > 0) || (!isRetestMode && words.length > 0)) &&
-          !isTestComplete && (
-            <WordTest
-              words={isRetestMode ? incorrectWords : words}
-              onComplete={handleTestComplete}
-              timeLimit={settings.timeLimit}
-              onRetestIncorrect={handleRetestIncorrect}
-            />
-          )}
-
-        {(selectedCategory || isRandomMode || isRetestMode) && !isLoading && isTestComplete && (
+        {isTestComplete && (
           <div className="flex-1 flex flex-col items-center justify-center">
             <div className="bg-white rounded-3xl shadow-lg p-12 mb-8 text-center">
               <h2 className="text-4xl font-bold text-black mb-6">恭喜完成学习！</h2>
-              <p className="text-2xl text-black mb-8">
-                你已经完成了 {isRetestMode ? incorrectWords.length : words.length} 个单词的学习
-              </p>
+              <p className="text-2xl text-black mb-8">你已经完成了 {words.length} 个单词的学习</p>
 
               <div className="flex space-x-6">
                 <button onClick={handleRestartTest} className="bg-black text-white text-xl py-4 px-8 rounded-xl">
@@ -374,7 +349,7 @@ export default function LearnPage() {
           <div>重新测试模式: {isRetestMode ? "是" : "否"}</div>
           <div>测试完成: {isTestComplete ? "是" : "否"}</div>
           <div>加载中: {isLoading ? "是" : "否"}</div>
-          <div>选定类别单词总数: {wordCount !== null ? wordCount : "未加载"}</div>
+          <div>选定类别单词总数: {categoryWordCount !== null ? categoryWordCount : "未加载"}</div>
           <div className="flex space-x-2 mt-2">
             <button
               onClick={() =>
@@ -386,7 +361,7 @@ export default function LearnPage() {
                   incorrectWords,
                   isTestComplete,
                   isLoading,
-                  wordCount,
+                  categoryWordCount,
                 })
               }
               className="bg-red-500 px-2 py-1 rounded text-xs"
